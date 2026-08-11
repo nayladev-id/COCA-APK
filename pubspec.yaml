@@ -1,0 +1,37 @@
+name: coffee_catalog_app
+description: Coffee Catalog App - Tugas Pemrograman Mobile
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.0
+  cached_network_image: ^3.3.1
+  shared_preferences: ^2.5.5
+  url_launcher: ^6.3.2
+  image_picker: ^1.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/hot/
+    - assets/images/iced/
+    - assets/images/lokal/
+    - assets/logo.jpg
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.jpg"
