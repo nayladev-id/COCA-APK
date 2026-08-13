@@ -1,9 +1,10 @@
 // lib/screens/home_screen.dart
-// Menampilkan list kopi dari Sample APIs Coffee + terjemahan dari API sendiri
 
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../models/coffee_model.dart';
 import '../models/terjemahan_model.dart';
 import '../services/coffee_api_service.dart';
@@ -14,6 +15,8 @@ import '../utils/auth_manager.dart';
 import 'detail_screen.dart';
 import 'auth_screen.dart';
 import 'profile_screen.dart';
+
+final ValueNotifier<Set<String>> favoriteNotifier = ValueNotifier<Set<String>>({});
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,15 +35,15 @@ class _HomeScreenState extends State<HomeScreen>
   List<CoffeeModel> _hotCoffees = [];
   List<CoffeeModel> _icedCoffees = [];
   List<CoffeeModel> _lokalCoffees = [];
-  // Map idApi -> TerjemahanModel untuk lookup O(1)
   Map<int, TerjemahanModel> _terjemahanMap = {};
-  // Set idApi yang sudah difavoritkan
-  Set<int> _favoritIdApiSet = {};
 
   bool _isLoading = true;
   String? _errorMessage;
   String _searchQuery = '';
-  String _username = 'Pengguna';
+  
+  // Variabel untuk membedakan Role
+  bool _isOwner = false;
+  String _username = 'Coffee Lover'; // Nama default untuk Customer
   String? _profilePicBase64;
   String _sortBy = 'default';
 
@@ -55,9 +58,17 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _loadUser() async {
     final name = await AuthManager.getUsername();
     final pic = await AuthManager.getProfilePicture();
+    
     if (mounted) {
       setState(() {
-        if (name != null) _username = name;
+        // Logika Role: Jika ada nama dari AuthManager, berarti Owner sedang login
+        if (name != null && name.isNotEmpty) {
+          _username = name;
+          _isOwner = true;
+        } else {
+          _username = 'Customer';
+          _isOwner = false;
+        }
         _profilePicBase64 = pic;
       });
     }
@@ -76,24 +87,20 @@ class _HomeScreenState extends State<HomeScreen>
     });
 
     try {
-      // Fetch paralel untuk efisiensi
-      final results = await Future.wait([
-        _coffeeService.fetchHotCoffee(),
-        _coffeeService.fetchIcedCoffee(),
-        _coffeeService.fetchKopiNusantara(),
-        _myApiService.fetchAllTerjemahan(),
-        _myApiService.fetchAllFavorit(),
-      ]);
+      final hot = await _coffeeService.fetchHotCoffee();
+      final iced = await _coffeeService.fetchIcedCoffee();
+      final lokal = await _coffeeService.fetchKopiNusantara();
+      final terjemahanList = await _myApiService.fetchAllTerjemahan();
 
-      final terjemahanList = results[3] as List<TerjemahanModel>;
-      final favoritList = results[4] as List;
+      final prefs = await SharedPreferences.getInstance();
+      final savedFavs = prefs.getStringList('local_favorites') ?? [];
+      favoriteNotifier.value = savedFavs.toSet();
 
       setState(() {
-        _hotCoffees = results[0] as List<CoffeeModel>;
-        _icedCoffees = results[1] as List<CoffeeModel>;
-        _lokalCoffees = results[2] as List<CoffeeModel>;
+        _hotCoffees = hot;
+        _icedCoffees = iced;
+        _lokalCoffees = lokal;
         _terjemahanMap = {for (var t in terjemahanList) t.idApi: t};
-        _favoritIdApiSet = {for (var f in favoritList) f.idApi as int};
         _isLoading = false;
       });
     } catch (e) {
@@ -106,35 +113,24 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _toggleFavorit(CoffeeModel coffee) async {
-    final isCurrentlyFavorit = _favoritIdApiSet.contains(coffee.id);
+    final prefs = await SharedPreferences.getInstance();
+    final currentFavorites = Set<String>.from(favoriteNotifier.value);
 
-    if (isCurrentlyFavorit) {
-      // Hapus favorit: cari id row di DB
-      final favoritDbId = await _myApiService.getFavoritId(coffee.id);
-      if (favoritDbId != null) {
-        final success = await _myApiService.deleteFavorit(favoritDbId);
-        if (success) {
-          setState(() => _favoritIdApiSet.remove(coffee.id));
-          _showSnack('${coffee.title} dihapus dari favorit.');
-        }
-      }
+    if (currentFavorites.contains(coffee.title)) {
+      currentFavorites.remove(coffee.title);
+      _showSnack('${coffee.title} dihapus dari favorit.');
     } else {
-      // Tambah favorit
-      final success = await _myApiService.addFavorit(
-        idApi: coffee.id,
-        nama: coffee.title,
-        image: coffee.image,
-      );
-      if (success) {
-        setState(() => _favoritIdApiSet.add(coffee.id));
-        _showSnack('${coffee.title} ditambahkan ke favorit!');
-      }
+      currentFavorites.add(coffee.title);
+      _showSnack('${coffee.title} ditambahkan ke favorit!');
     }
+
+    favoriteNotifier.value = currentFavorites;
+    await prefs.setStringList('local_favorites', currentFavorites.toList());
   }
 
   Future<void> _openMap() async {
-    // Mengarah langsung ke pencarian kedai kopi di sekitar kampus UDB
-    final Uri url = Uri.parse('https://www.google.com/maps/search/coffee+shop+near+Universitas+Duta+Bangsa+Surakarta');
+    final Uri url = Uri.parse(
+        'https://www.google.com/maps/search/coffee+shop+near+Universitas+Duta+Bangsa+Surakarta');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
@@ -145,67 +141,49 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _logout() async {
     await AuthManager.logout();
     if (!mounted) return;
+    
+    // Refresh halaman menjadi mode Customer
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const AuthScreen()),
-    );
-  }
-
-  void _showAbout() {
-    showAboutDialog(
-      context: context,
-      applicationName: 'Coffee Catalog',
-      applicationVersion: '1.0.0',
-      applicationIcon: const Icon(Icons.coffee_maker, size: 40),
-      children: [
-        const Text('Aplikasi sederhana untuk menjelajahi berbagai macam jenis kopi dari seluruh dunia.\n\nDibuat untuk memenuhi tugas UAS Pemrograman Mobile Universitas Duta Bangsa Surakarta.'),
-      ],
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
   }
 
   void _showSortOptions() {
     showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Urutkan Kopi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              ListTile(
-                leading: const Icon(Icons.sort),
-                title: const Text('Bawaan (Default)'),
-                trailing: _sortBy == 'default' ? const Icon(Icons.check, color: Colors.green) : null,
-                onTap: () {
-                  setState(() => _sortBy = 'default');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.keyboard_arrow_down),
-                title: const Text('Nama (A - Z)'),
-                trailing: _sortBy == 'name_asc' ? const Icon(Icons.check, color: Colors.green) : null,
-                onTap: () {
-                  setState(() => _sortBy = 'name_asc');
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.keyboard_arrow_up),
-                title: const Text('Nama (Z - A)'),
-                trailing: _sortBy == 'name_desc' ? const Icon(Icons.check, color: Colors.green) : null,
-                onTap: () {
-                  setState(() => _sortBy = 'name_desc');
-                  Navigator.pop(context);
-                },
-              ),
-            ],
-          ),
-        );
-      }
-    );
+        context: context,
+        shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        builder: (context) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Urutkan Kopi',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                ListTile(
+                  leading: const Icon(Icons.sort),
+                  title: const Text('Bawaan (Default)'),
+                  trailing: _sortBy == 'default' ? const Icon(Icons.check, color: Colors.green) : null,
+                  onTap: () { setState(() => _sortBy = 'default'); Navigator.pop(context); },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.keyboard_arrow_down),
+                  title: const Text('Nama (A - Z)'),
+                  trailing: _sortBy == 'name_asc' ? const Icon(Icons.check, color: Colors.green) : null,
+                  onTap: () { setState(() => _sortBy = 'name_asc'); Navigator.pop(context); },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.keyboard_arrow_up),
+                  title: const Text('Nama (Z - A)'),
+                  trailing: _sortBy == 'name_desc' ? const Icon(Icons.check, color: Colors.green) : null,
+                  onTap: () { setState(() => _sortBy = 'name_desc'); Navigator.pop(context); },
+                ),
+              ],
+            ),
+          );
+        });
   }
 
   void _showSnack(String message) {
@@ -215,14 +193,12 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildCoffeeList(List<CoffeeModel> coffees, {bool isIced = false}) {
-    // 1. Filter berdasarkan pencarian
     var filteredCoffees = coffees.where((c) {
       final titleLower = c.title.toLowerCase();
       final queryLower = _searchQuery.toLowerCase();
       return titleLower.contains(queryLower);
     }).toList();
 
-    // 2. Sorting (Pengurutan)
     if (_sortBy == 'name_asc') {
       filteredCoffees.sort((a, b) => a.title.compareTo(b.title));
     } else if (_sortBy == 'name_desc') {
@@ -233,62 +209,66 @@ class _HomeScreenState extends State<HomeScreen>
       return const Center(child: Text('Tidak ada kopi yang sesuai.'));
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: filteredCoffees.length,
-        itemBuilder: (context, index) {
-          final coffee = filteredCoffees[index];
-          // Iced coffee menggunakan offset +10000 untuk lookup terjemahan (agar tidak bentrok dengan hot)
-          final terjemahanKey = isIced ? coffee.id + 10000 : coffee.id;
-          final terjemahan = _terjemahanMap[terjemahanKey];
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: CoffeeCard(
-              coffee: coffee,
-              deskripsiId: terjemahan?.deskripsiId,
-              isFavorit: _favoritIdApiSet.contains(coffee.id),
-              isIced: isIced,
-              onFavoritToggle: () => _toggleFavorit(coffee),
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DetailScreen(
-                      coffee: coffee,
-                      terjemahan: terjemahan,
-                      isFavorit: _favoritIdApiSet.contains(coffee.id),
-                      isIced: isIced,
-                      onFavoritToggle: () {
-                        _toggleFavorit(coffee);
-                        // Perbarui state jika kembali dari DetailScreen
-                        setState(() {}); 
-                      },
-                    ),
-                  ),
-                );
-                // Refresh status favorit setelah kembali dari detail
-                final updatedFavorit = await _myApiService.fetchAllFavorit();
-                setState(() {
-                  _favoritIdApiSet = {for (var f in updatedFavorit) f.idApi};
-                });
-              },
-            ),
-          );
-        },
-      ),
+    return ValueListenableBuilder<Set<String>>(
+      valueListenable: favoriteNotifier,
+      builder: (context, favoriteSet, child) {
+        return RefreshIndicator(
+          onRefresh: _loadData,
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: filteredCoffees.length,
+            itemBuilder: (context, index) {
+              final coffee = filteredCoffees[index];
+              final terjemahanKey = isIced ? coffee.id + 10000 : coffee.id;
+              final terjemahan = _terjemahanMap[terjemahanKey];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: CoffeeCard(
+                  coffee: coffee,
+                  deskripsiId: terjemahan?.deskripsiId,
+                  isFavorit: favoriteSet.contains(coffee.title),
+                  isIced: isIced,
+                  onFavoritToggle: () => _toggleFavorit(coffee),
+                  onTap: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DetailScreen(
+                          coffee: coffee,
+                          terjemahan: terjemahan,
+                          isFavorit: favoriteSet.contains(coffee.title),
+                          isIced: isIced,
+                          onFavoritToggle: () {
+                            _toggleFavorit(coffee);
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('☕ Coffee Catalog'),
+        title: GestureDetector(
+          onDoubleTap: () {
+            _showSnack('Membuka Akses Owner...');
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
+          },
+          child: const Text('☕ Coffee Catalog'),
+        ),
         centerTitle: true,
         actions: [
-          // Tombol Toggle Dark Mode
           ValueListenableBuilder<ThemeMode>(
             valueListenable: ThemeManager.themeNotifier,
             builder: (_, ThemeMode currentMode, __) {
@@ -300,64 +280,54 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: _showSortOptions,
-            tooltip: 'Urutkan',
-          ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.local_fire_department), text: 'Hot'),
-            Tab(icon: Icon(Icons.ac_unit), text: 'Iced'),
-            Tab(icon: Icon(Icons.location_on), text: 'Lokal'),
-          ],
-        ),
       ),
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
-              accountName: Text(_username, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              accountEmail: const Text('Mahasiswa UDB / Coffee Enthusiast'),
+              accountName: Text(_username,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              accountEmail: Text(_isOwner ? 'Administrator Kafe' : 'Selamat Datang di Kafe Kami!'),
               currentAccountPicture: CircleAvatar(
                 backgroundColor: Colors.white,
-                backgroundImage: _profilePicBase64 != null
+                backgroundImage: _isOwner && _profilePicBase64 != null
                     ? MemoryImage(base64Decode(_profilePicBase64!))
                     : null,
-                child: _profilePicBase64 == null
-                    ? const Icon(Icons.person, size: 50, color: Colors.grey)
+                child: (!_isOwner || _profilePicBase64 == null)
+                    ? const Icon(Icons.coffee, size: 40, color: Colors.grey)
                     : null,
               ),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary,
+                color: theme.colorScheme.primary,
                 image: const DecorationImage(
-                  image: NetworkImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf?auto=format&fit=crop&q=80&w=800'),
+                  image: NetworkImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf'),
                   fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(Colors.black45, BlendMode.darken),
+                  colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken),
                 ),
               ),
             ),
             ListTile(
               leading: const Icon(Icons.home),
-              title: const Text('Beranda'),
+              title: const Text('Beranda Web'),
               onTap: () => Navigator.pop(context),
             ),
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text('Profil Saya'),
-              onTap: () async {
-                Navigator.pop(context);
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-                _loadUser(); // Refresh data user setelah kembali dari profil
-              },
-            ),
+            // Menu Profil HANYA muncul untuk Owner
+            if (_isOwner)
+              ListTile(
+                leading: const Icon(Icons.person),
+                title: const Text('Profil Saya'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                  _loadUser();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.map),
-              title: const Text('Peta Kedai Kopi'),
-              subtitle: const Text('Cari di sekitar kampus'),
+              title: const Text('Lokasi Kafe'),
+              subtitle: const Text('Kunjungi kami secara langsung'),
               onTap: () {
                 Navigator.pop(context);
                 _openMap();
@@ -365,79 +335,117 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             ListTile(
               leading: const Icon(Icons.brightness_6),
-              title: const Text('Ganti Tema'),
+              title: const Text('Ganti Tema (Estetika)'),
               onTap: () {
                 ThemeManager.toggleTheme();
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.info_outline),
-              title: const Text('Tentang Aplikasi'),
-              onTap: () {
-                Navigator.pop(context);
-                _showAbout();
-              },
-            ),
             const Divider(),
+            // Tombol Dinamis: Login Owner ATAU Logout
             ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red)),
-              onTap: _logout,
+              leading: Icon(_isOwner ? Icons.logout : Icons.admin_panel_settings, 
+                            color: _isOwner ? Colors.red : Colors.brown),
+              title: Text(_isOwner ? 'Logout' : 'Login Owner', 
+                          style: TextStyle(color: _isOwner ? Colors.red : Colors.brown, fontWeight: FontWeight.bold)),
+              onTap: () {
+                Navigator.pop(context); // Tutup drawer dulu
+                if (_isOwner) {
+                  _logout();
+                } else {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
+                }
+              },
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openMap,
-        icon: const Icon(Icons.map),
-        label: const Text('Kedai Terdekat'),
-      ),
+      // Tombol Mengambang (Floating) berbeda untuk Owner dan Customer
+      floatingActionButton: _isOwner 
+          ? FloatingActionButton.extended(
+              onPressed: () => _showSnack('Fitur Kelola Menu Segera Hadir!'),
+              icon: const Icon(Icons.edit_document),
+              label: const Text('Kelola Katalog'),
+              backgroundColor: Colors.brown,
+              foregroundColor: Colors.white,
+            )
+          : FloatingActionButton.extended(
+              onPressed: _openMap,
+              icon: const Icon(Icons.map),
+              label: const Text('Kunjungi Kedai'),
+            ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.wifi_off, size: 64, color: Colors.grey),
-                        const SizedBox(height: 16),
-                        Text(
-                          _errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _loadData,
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Coba Lagi'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
+              ? Center(child: Text(_errorMessage!))
               : Column(
                   children: [
-                    // Kotak Pencarian
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: TextField(
-                        onChanged: (value) => setState(() => _searchQuery = value),
-                        decoration: InputDecoration(
-                          hintText: 'Cari kopi favoritmu...',
-                          prefixIcon: const Icon(Icons.search),
-                          filled: true,
-                          fillColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    // --- HERO BANNER (CAFE WEB VIBE) ---
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+                      decoration: BoxDecoration(
+                        image: DecorationImage(
+                          image: const NetworkImage('https://images.unsplash.com/photo-1447933601403-0c6688de566e?q=80&w=1000'), // Gambar biji kopi klasik
+                          fit: BoxFit.cover,
+                          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.65), BlendMode.darken),
                         ),
                       ),
+                      child: const Column(
+                        children: [
+                          Text(
+                            'Vintage Roastery',
+                            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2.0),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Jelajahi koleksi biji kopi terbaik dari seluruh dunia, \ndiseduh dengan kehangatan tempo dulu.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 14, color: Colors.white70, height: 1.5),
+                          ),
+                        ],
+                      ),
                     ),
+                    // -----------------------------------
+                    
+                    // Kotak Pencarian & Filter
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              onChanged: (value) => setState(() => _searchQuery = value),
+                              decoration: InputDecoration(
+                                hintText: 'Cari kopi favoritmu...',
+                                prefixIcon: const Icon(Icons.search),
+                                filled: true,
+                                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+                                contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.filter_list),
+                            onPressed: _showSortOptions,
+                            style: IconButton.styleFrom(backgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5)),
+                          ),
+                        ],
+                      ),
+                    ),
+                    
+                    // Tab Bar Menu Kopi
+                    TabBar(
+                      controller: _tabController,
+                      tabs: const [
+                        Tab(icon: Icon(Icons.local_fire_department), text: 'Hot'),
+                        Tab(icon: Icon(Icons.ac_unit), text: 'Iced'),
+                        Tab(icon: Icon(Icons.location_on), text: 'Lokal'),
+                      ],
+                    ),
+                    
+                    // List Katalog Kopi
                     Expanded(
                       child: TabBarView(
                         controller: _tabController,

@@ -1,9 +1,11 @@
 // lib/screens/favorit_screen.dart
-// Menampilkan daftar kopi favorit dari API sendiri + dialog edit catatan/rating
 
 import 'package:flutter/material.dart';
+import 'dart:convert'; 
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/favorit_model.dart';
-import '../services/my_api_service.dart';
+import '../services/coffee_api_service.dart';
+import 'home_screen.dart'; // IMPORT JEMBATAN KOMUNIKASI DARI HOME
 
 class FavoritScreen extends StatefulWidget {
   const FavoritScreen({super.key});
@@ -13,7 +15,7 @@ class FavoritScreen extends StatefulWidget {
 }
 
 class _FavoritScreenState extends State<FavoritScreen> {
-  final _myApiService = MyApiService();
+  final _coffeeService = CoffeeApiService();
 
   List<FavoritModel> _favoritList = [];
   bool _isLoading = true;
@@ -28,7 +30,35 @@ class _FavoritScreenState extends State<FavoritScreen> {
   Future<void> _loadFavorit() async {
     setState(() { _isLoading = true; _errorMessage = null; });
     try {
-      final data = await _myApiService.fetchAllFavorit();
+      final prefs = await SharedPreferences.getInstance();
+      
+      final savedTitles = prefs.getStringList('local_favorites') ?? [];
+      final Set<String> titleSet = savedTitles.toSet();
+
+      final notesJson = prefs.getString('local_notes') ?? '{}';
+      final Map<String, dynamic> notesMap = jsonDecode(notesJson);
+
+      final hot = await _coffeeService.fetchHotCoffee();
+      final iced = await _coffeeService.fetchIcedCoffee();
+      final lokal = await _coffeeService.fetchKopiNusantara();
+      final allCoffees = [...hot, ...iced, ...lokal];
+
+      List<FavoritModel> data = [];
+      for (var coffee in allCoffees) {
+        if (titleSet.contains(coffee.title)) {
+          final noteData = notesMap[coffee.title] ?? {}; 
+          data.add(FavoritModel(
+            id: coffee.id, 
+            idApi: coffee.id,
+            nama: coffee.title,
+            image: coffee.image,
+            catatan: noteData['catatan'],
+            rating: noteData['rating'],
+            createdAt: DateTime.now().toString(),
+          ));
+        }
+      }
+
       setState(() { _favoritList = data; _isLoading = false; });
     } catch (e) {
       setState(() {
@@ -52,21 +82,31 @@ class _FavoritScreenState extends State<FavoritScreen> {
     );
 
     if (confirm == true) {
-      final success = await _myApiService.deleteFavorit(item.id);
-      if (success) {
-        _loadFavorit();
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('${item.nama} dihapus.')));
-        }
+      final prefs = await SharedPreferences.getInstance();
+      
+      final savedTitles = prefs.getStringList('local_favorites') ?? [];
+      savedTitles.remove(item.nama);
+      await prefs.setStringList('local_favorites', savedTitles);
+
+      // KUNCI UTAMA: Beri tahu HomeScreen agar warna hatinya langsung luntur!
+      favoriteNotifier.value = savedTitles.toSet();
+
+      final notesJson = prefs.getString('local_notes') ?? '{}';
+      final Map<String, dynamic> notesMap = jsonDecode(notesJson);
+      notesMap.remove(item.nama);
+      await prefs.setString('local_notes', jsonEncode(notesMap));
+
+      _loadFavorit(); 
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('${item.nama} dihapus.')));
       }
     }
   }
 
-  // Dialog untuk edit catatan & rating (memanggil PUT endpoint)
   Future<void> _editFavorit(FavoritModel item) async {
-    final catatanController =
-        TextEditingController(text: item.catatan ?? '');
+    final catatanController = TextEditingController(text: item.catatan ?? '');
     int selectedRating = item.rating ?? 0;
 
     await showDialog(
@@ -78,7 +118,6 @@ class _FavoritScreenState extends State<FavoritScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Input catatan
               TextField(
                 controller: catatanController,
                 maxLines: 3,
@@ -89,8 +128,6 @@ class _FavoritScreenState extends State<FavoritScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Input rating bintang
               const Text('Rating:', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Row(
@@ -99,13 +136,11 @@ class _FavoritScreenState extends State<FavoritScreen> {
                   final starValue = i + 1;
                   return IconButton(
                     icon: Icon(
-                      starValue <= selectedRating
-                          ? Icons.star : Icons.star_border,
+                      starValue <= selectedRating ? Icons.star : Icons.star_border,
                       color: Colors.amber,
                       size: 32,
                     ),
-                    onPressed: () => setDialogState(
-                        () => selectedRating = starValue),
+                    onPressed: () => setDialogState(() => selectedRating = starValue),
                   );
                 }),
               ),
@@ -118,15 +153,21 @@ class _FavoritScreenState extends State<FavoritScreen> {
             ),
             FilledButton(
               onPressed: () async {
-                Navigator.pop(ctx);
-                final success = await _myApiService.updateFavorit(
-                  id: item.id,
-                  catatan: catatanController.text.trim().isEmpty
-                      ? null : catatanController.text.trim(),
-                  rating: selectedRating == 0 ? null : selectedRating,
-                );
+                Navigator.pop(ctx); 
+                
+                final prefs = await SharedPreferences.getInstance();
+                final notesJson = prefs.getString('local_notes') ?? '{}';
+                final Map<String, dynamic> notesMap = jsonDecode(notesJson);
+
+                notesMap[item.nama] = {
+                  'catatan': catatanController.text.trim().isEmpty ? null : catatanController.text.trim(),
+                  'rating': selectedRating == 0 ? null : selectedRating,
+                };
+
+                final success = await prefs.setString('local_notes', jsonEncode(notesMap));
+                
                 if (success) {
-                  _loadFavorit();
+                  _loadFavorit(); 
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Berhasil diupdate!')));
@@ -148,8 +189,7 @@ class _FavoritScreenState extends State<FavoritScreen> {
 
   Widget _buildRatingStars(int? rating) {
     if (rating == null || rating == 0) {
-      return const Text('Belum ada rating',
-          style: TextStyle(color: Colors.grey, fontSize: 12));
+      return const Text('Belum ada rating', style: TextStyle(color: Colors.grey, fontSize: 12));
     }
     return Row(
       children: List.generate(5, (i) => Icon(
@@ -166,15 +206,8 @@ class _FavoritScreenState extends State<FavoritScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('❤️ Favorit Saya'),
+        title: const Text('Favorit Saya'),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadFavorit,
-            tooltip: 'Refresh',
-          ),
-        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -185,8 +218,7 @@ class _FavoritScreenState extends State<FavoritScreen> {
                     children: [
                       const Icon(Icons.error_outline, size: 64, color: Colors.grey),
                       const SizedBox(height: 16),
-                      Text(_errorMessage!, textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.grey)),
+                      Text(_errorMessage!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
                         onPressed: _loadFavorit,
@@ -201,14 +233,11 @@ class _FavoritScreenState extends State<FavoritScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.favorite_border, size: 80,
-                              color: colorScheme.outlineVariant),
+                          Icon(Icons.favorite_border, size: 80, color: colorScheme.outlineVariant),
                           const SizedBox(height: 16),
-                          const Text('Belum ada kopi favorit.',
-                              style: TextStyle(fontSize: 16)),
+                          const Text('Belum ada kopi favorit.', style: TextStyle(fontSize: 16)),
                           const SizedBox(height: 8),
-                          const Text('Tambahkan dari halaman Home!',
-                              style: TextStyle(color: Colors.grey)),
+                          const Text('Tambahkan dari halaman Home!', style: TextStyle(color: Colors.grey)),
                         ],
                       ),
                     )
@@ -221,8 +250,7 @@ class _FavoritScreenState extends State<FavoritScreen> {
                           final item = _favoritList[index];
                           return Card(
                             elevation: 2,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             clipBehavior: Clip.antiAlias,
                             margin: const EdgeInsets.only(bottom: 10),
                             child: Padding(
@@ -230,7 +258,6 @@ class _FavoritScreenState extends State<FavoritScreen> {
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Gambar
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(10),
                                     child: SizedBox(
@@ -239,55 +266,31 @@ class _FavoritScreenState extends State<FavoritScreen> {
                                           ? Image.network(item.image,
                                               fit: BoxFit.cover,
                                               errorBuilder: (_, __, ___) =>
-                                                  Container(
-                                                    color: colorScheme.surfaceContainerHighest,
-                                                    child: const Icon(Icons.coffee),
-                                                  ))
-                                          : Container(
-                                              color: colorScheme.surfaceContainerHighest,
-                                              child: const Icon(Icons.coffee)),
+                                                  Container(color: colorScheme.surfaceContainerHighest, child: const Icon(Icons.coffee)))
+                                          : Container(color: colorScheme.surfaceContainerHighest, child: const Icon(Icons.coffee)),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
-                                  // Info
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(item.nama,
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 15)),
+                                        Text(item.nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                                         const SizedBox(height: 4),
                                         _buildRatingStars(item.rating),
-                                        if (item.catatan != null &&
-                                            item.catatan!.isNotEmpty) ...[
+                                        if (item.catatan != null && item.catatan!.isNotEmpty) ...[
                                           const SizedBox(height: 4),
                                           Text(item.catatan!,
-                                              style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: colorScheme.onSurfaceVariant),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis),
+                                              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                                              maxLines: 2, overflow: TextOverflow.ellipsis),
                                         ],
                                       ],
                                     ),
                                   ),
-                                  // Tombol aksi
                                   Column(
                                     children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.edit_note,
-                                            color: Colors.blue),
-                                        tooltip: 'Edit catatan & rating',
-                                        onPressed: () => _editFavorit(item),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete_outline,
-                                            color: Colors.red),
-                                        tooltip: 'Hapus dari favorit',
-                                        onPressed: () => _hapusFavorit(item),
-                                      ),
+                                      IconButton(icon: const Icon(Icons.edit_note, color: Colors.blue), tooltip: 'Edit catatan & rating', onPressed: () => _editFavorit(item)),
+                                      IconButton(icon: const Icon(Icons.delete_outline, color: Colors.red), tooltip: 'Hapus dari favorit', onPressed: () => _hapusFavorit(item)),
                                     ],
                                   ),
                                 ],
