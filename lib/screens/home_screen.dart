@@ -18,6 +18,7 @@ import 'auth_screen.dart';
 import 'profile_screen.dart';
 import 'cart_screen.dart';
 import 'live_order_screen.dart'; // IMPORT LAYAR DAPUR
+import 'admin_dashboard_screen.dart';
 
 final ValueNotifier<Set<String>> favoriteNotifier = ValueNotifier<Set<String>>({});
 
@@ -343,6 +344,16 @@ class _HomeScreenState extends State<HomeScreen>
                   _loadUser();
                 },
               ),
+              if (_isOwner)
+           ListTile(
+             leading: const Icon(Icons.analytics),
+             title: const Text('Laporan & Dasbor Owner'),
+             subtitle: const Text('Lihat omzet & statistik pesanan'),
+             onTap: () {
+               Navigator.pop(context);
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+             },
+           ),
             ListTile(
               leading: const Icon(Icons.map),
               title: const Text('Lokasi Kafe'),
