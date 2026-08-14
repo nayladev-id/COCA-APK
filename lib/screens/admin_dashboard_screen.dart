@@ -112,6 +112,10 @@ class AdminDashboardScreen extends StatelessWidget {
                     itemCount: orders.length > 5 ? 5 : orders.length, // Tampilkan 5 transaksi terakhir
                     itemBuilder: (context, index) {
                       final order = orders[index];
+                      
+                      // PERBAIKAN: Menggabungkan nama kopi yang dipesan beserta jumlahnya
+                      final rincianPesanan = order.items.map((item) => '${item.quantity}x ${item.nama}').join(', ');
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),
                         child: ListTile(
@@ -123,7 +127,13 @@ class AdminDashboardScreen extends StatelessWidget {
                             ),
                           ),
                           title: Text('Meja ${order.meja} - Rp ${order.totalHarga}'),
-                          subtitle: Text('${order.items.length} Macam Kopi • ${order.paymentMethod}'),
+                          // PERBAIKAN: Menampilkan rincian nama kopi alih-alih jumlah macamnya
+                          subtitle: Text(
+                            '$rincianPesanan • ${order.paymentMethod}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(height: 1.4),
+                          ),
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
