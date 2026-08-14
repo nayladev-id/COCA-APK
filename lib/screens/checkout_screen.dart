@@ -2,11 +2,14 @@
 
 import 'package:flutter/material.dart';
 import '../models/cart_model.dart';
-import '../models/order_model.dart'; // IMPORT DATABASE PESANAN
+import '../models/order_model.dart';
 import 'home_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({super.key});
+  // PERBAIKAN: Menambahkan opsi pesanan langsung (Jalur VIP)
+  final List<CartItem>? directItem; 
+  
+  const CheckoutScreen({super.key, this.directItem});
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
@@ -15,6 +18,15 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final TextEditingController _mejaController = TextEditingController();
   String _selectedPayment = 'QRIS';
+  
+  late List<CartItem> _itemsToCheckout;
+
+  @override
+  void initState() {
+    super.initState();
+    // PERBAIKAN: Jika ada directItem (Beli Langsung), pakai itu. Jika tidak, pakai Keranjang Global.
+    _itemsToCheckout = widget.directItem ?? cartNotifier.value;
+  }
 
   void _prosesPembayaran(int totalBelanja) {
     if (_mejaController.text.trim().isEmpty) {
@@ -62,7 +74,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           FilledButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _selesaikanPesanan(totalBelanja); // Bawa total belanja ke fungsi ini
+              _selesaikanPesanan(totalBelanja); 
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.brown),
             child: const Text('Saya Sudah Bayar'),
@@ -73,22 +85,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _selesaikanPesanan(int totalBelanja) {
-    // 1. Bungkus data pesanan dan lemparkan ke dapur (Order Database)
     final newOrder = OrderModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(), // Bikin ID unik dari waktu
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       meja: _mejaController.text.trim(),
-      items: List.from(cartNotifier.value), // Salin isi keranjang
+      items: List.from(_itemsToCheckout), // Menggunakan data yang di-checkout, bukan selalu global cart
       totalHarga: totalBelanja,
       paymentMethod: _selectedPayment,
       createdAt: DateTime.now(),
     );
     
-    globalOrderNotifier.value = [newOrder, ...globalOrderNotifier.value]; // Masukkan ke urutan paling atas
+    globalOrderNotifier.value = [newOrder, ...globalOrderNotifier.value]; 
 
-    // 2. Kosongkan keranjang pelanggan
-    cartNotifier.value = [];
+    // PERBAIKAN: Hanya kosongkan keranjang pelanggan JIKA yang di-checkout adalah Keranjang Global
+    if (widget.directItem == null) {
+      cartNotifier.value = [];
+    }
     
-    // 3. Kembali ke Home
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const HomeScreen()),
       (Route<dynamic> route) => false,
@@ -106,8 +118,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final cartItems = cartNotifier.value;
-    final totalHarga = cartItems.fold(0, (sum, item) => sum + item.subtotal);
+    final totalHarga = _itemsToCheckout.fold(0, (sum, item) => sum + item.subtotal);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Checkout'), centerTitle: true),
@@ -142,7 +153,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.2)),
               ),
               child: Column(
-                children: cartItems.map((item) {
+                children: _itemsToCheckout.map((item) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8.0),
                     child: Row(

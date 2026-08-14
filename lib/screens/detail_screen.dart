@@ -6,6 +6,7 @@ import '../models/terjemahan_model.dart';
 import '../models/cart_model.dart'; 
 import '../utils/image_overrides.dart';
 import '../utils/ingredient_translator.dart';
+import 'checkout_screen.dart'; // IMPORT HALAMAN CHECKOUT
 
 class DetailScreen extends StatefulWidget {
   final CoffeeModel coffee;
@@ -41,40 +42,62 @@ class _DetailScreenState extends State<DetailScreen> {
     return widget.isIced ? 28000 : 25000;
   }
 
-  void _addToCart() {
+  // Parameter isBeliLangsung untuk membedakan aksi tombol
+  // Parameter isBeliLangsung untuk membedakan aksi tombol
+  void _prosesPesanan({required bool isBeliLangsung}) {
     final price = _getDummyPrice();
-    final currentCart = List<CartItem>.from(cartNotifier.value);
-    
-    int existingIndex = currentCart.indexWhere((item) => 
-        item.nama == widget.coffee.title && item.isIced == widget.isIced);
-    
-    if (existingIndex != -1) {
-      currentCart[existingIndex].quantity += _quantity;
+
+    if (isBeliLangsung) {
+      // JALUR VIP: Langsung kirim 1 kopi ini ke CheckoutScreen tanpa masuk keranjang
+      final singleItem = CartItem(
+        id: widget.coffee.id, 
+        nama: widget.coffee.title,
+        image: widget.coffee.image,
+        harga: price,
+        quantity: _quantity,
+        isIced: widget.isIced,
+      );
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          // Kirim data via parameter directItem yang baru kita buat
+          builder: (_) => CheckoutScreen(directItem: [singleItem]),
+        ),
+      );
     } else {
-      currentCart.add(
-        CartItem(
-          id: widget.coffee.id, 
-          nama: widget.coffee.title,
-          image: widget.coffee.image,
-          harga: price,
-          quantity: _quantity,
-          isIced: widget.isIced,
-        )
+      // JALUR NORMAL: Masukkan ke Keranjang
+      final currentCart = List<CartItem>.from(cartNotifier.value);
+      int existingIndex = currentCart.indexWhere((item) => 
+          item.nama == widget.coffee.title && item.isIced == widget.isIced);
+      
+      if (existingIndex != -1) {
+        currentCart[existingIndex].quantity += _quantity;
+      } else {
+        currentCart.add(
+          CartItem(
+            id: widget.coffee.id, 
+            nama: widget.coffee.title,
+            image: widget.coffee.image,
+            harga: price,
+            quantity: _quantity,
+            isIced: widget.isIced,
+          )
+        );
+      }
+      
+      cartNotifier.value = currentCart;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_quantity}x ${widget.coffee.title} ditambahkan ke keranjang!'),
+          backgroundColor: Colors.brown,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          duration: const Duration(seconds: 2), 
+        ),
       );
     }
-    
-    cartNotifier.value = currentCart;
-    
-    // PERBAIKAN: Notifikasi sekarang otomatis hilang dalam 2 detik
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${_quantity}x ${widget.coffee.title} ditambahkan ke keranjang!'),
-        backgroundColor: Colors.brown,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2), // Waktu tampil 2 detik
-      ),
-    );
   }
 
   Widget _sectionTitle(BuildContext context, String text) {
@@ -172,7 +195,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   }),
                   const SizedBox(height: 16),
                   Text('ID Sample API: ${coffee.id}', style: TextStyle(color: colorScheme.outline, fontSize: 12)),
-                  const SizedBox(height: 80), 
+                  const SizedBox(height: 100), // Extra space untuk bottom bar yang baru
                 ],
               ),
             ),
@@ -180,8 +203,9 @@ class _DetailScreenState extends State<DetailScreen> {
         ],
       ),
       
+      // BOTTOM BAR BARU: Layout 2 Baris (Kuantitas & Tombol Ganda)
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           boxShadow: [
@@ -189,43 +213,72 @@ class _DetailScreenState extends State<DetailScreen> {
           ],
         ),
         child: SafeArea(
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-                child: Row(
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove),
-                      onPressed: () {
-                        if (_quantity > 1) setState(() => _quantity--);
-                      },
+              // Baris 1: Pengatur Jumlah & Total Harga
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(30),
                     ),
-                    Text('$_quantity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      onPressed: () => setState(() => _quantity++),
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.remove),
+                          onPressed: () {
+                            if (_quantity > 1) setState(() => _quantity--);
+                          },
+                        ),
+                        Text('$_quantity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        IconButton(
+                          icon: const Icon(Icons.add),
+                          onPressed: () => setState(() => _quantity++),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  Text(
+                    'Rp $totalHarga', 
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _addToCart,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: Colors.brown,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+              const SizedBox(height: 12),
+              
+              // Baris 2: Tombol Ganda (+ Keranjang & Beli Langsung)
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _prosesPesanan(isBeliLangsung: false),
+                      icon: const Icon(Icons.add_shopping_cart, size: 18),
+                      label: const Text('+ Keranjang'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        foregroundColor: Colors.brown,
+                        side: const BorderSide(color: Colors.brown),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    'Pesan - Rp $totalHarga',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _prosesPesanan(isBeliLangsung: true),
+                      icon: const Icon(Icons.flash_on, size: 18),
+                      label: const Text('Beli Langsung'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        backgroundColor: Colors.brown,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
