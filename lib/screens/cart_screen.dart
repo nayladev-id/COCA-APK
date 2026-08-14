@@ -8,7 +8,6 @@ class CartScreen extends StatelessWidget {
 
   void _tambahKuantitas(CartItem item) {
     item.quantity++;
-    // Memaksa Notifier untuk memperbarui UI
     cartNotifier.value = List.from(cartNotifier.value);
   }
 
@@ -18,11 +17,6 @@ class CartScreen extends StatelessWidget {
     } else {
       cartNotifier.value.remove(item);
     }
-    cartNotifier.value = List.from(cartNotifier.value);
-  }
-
-  void _hapusItem(CartItem item) {
-    cartNotifier.value.remove(item);
     cartNotifier.value = List.from(cartNotifier.value);
   }
 
@@ -197,7 +191,8 @@ class CartScreen extends StatelessWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -5))],
+              // Perbaikan deprecated member dengan .withValues(alpha: ...)
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -213,7 +208,7 @@ class CartScreen extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: () {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Menuju Checkout...')));
-                    // Nanti kita arahkan ke CheckoutScreen di tahap selanjutnya
+                    // Nanti kita arahkan ke CheckoutScreen
                   },
                   icon: const Icon(Icons.payment),
                   label: const Text('Checkout'),

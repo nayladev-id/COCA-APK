@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'screens/favorit_screen.dart';
-//import 'screens/splash_screen.dart'; // Bisa dibiarkan jika sewaktu-waktu dipakai lagi
 import 'utils/theme_manager.dart';
 
 void main() {
@@ -25,22 +24,17 @@ class CoffeeCatalogApp extends StatelessWidget {
           themeMode: currentMode,
           theme: ThemeData(
             useMaterial3: true,
-            // Menambahkan warna krem kertas perkamen untuk nuansa Vintage Classic
-            scaffoldBackgroundColor: const Color(0xFFF4ECD8),
+            scaffoldBackgroundColor: const Color(0xFFF4ECD8), 
             colorScheme: ColorScheme.fromSeed(
-              seedColor: const Color(0xFF6F4E37), // Cokelat terang
+              seedColor: const Color(0xFF6F4E37),
               brightness: Brightness.light,
             ),
-            // Opsional: Ubah 'Roboto' jadi font klasik seperti 'PlayfairDisplay'
-            // setelah kamu menambahkannya di pubspec.yaml nanti
-            fontFamily: 'Roboto',
-            cardTheme:
-                const CardThemeData(elevation: 2, margin: EdgeInsets.zero),
+            fontFamily: 'Roboto', 
+            cardTheme: const CardThemeData(elevation: 2, margin: EdgeInsets.zero),
             appBarTheme: const AppBarTheme(
-              centerTitle: true,
+              centerTitle: true, 
               elevation: 0,
-              backgroundColor: Color(
-                  0xFFF4ECD8), // Menyamakan warna header dengan background
+              backgroundColor: Color(0xFFF4ECD8),
             ),
           ),
           darkTheme: ThemeData(
@@ -51,12 +45,10 @@ class CoffeeCatalogApp extends StatelessWidget {
               surface: const Color(0xFF1E1E1E),
             ),
             fontFamily: 'Roboto',
-            cardTheme:
-                const CardThemeData(elevation: 2, margin: EdgeInsets.zero),
+            cardTheme: const CardThemeData(elevation: 2, margin: EdgeInsets.zero),
             appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
           ),
-          // MENGUBAH RUTE AWAL: Langsung lempar pengunjung ke Katalog (tanpa login)
-          home: const MainNavigator(),
+          home: const MainNavigator(), 
         );
       },
     );
@@ -73,12 +65,6 @@ class MainNavigator extends StatefulWidget {
 class _MainNavigatorState extends State<MainNavigator> {
   int _selectedIndex = 0;
 
-  // Hapus kata 'const' pada list ini agar layarnya bisa di-refresh
-  static final List<Widget> _screens = [
-    const HomeScreen(),
-    const FavoritScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
@@ -87,18 +73,17 @@ class _MainNavigatorState extends State<MainNavigator> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          const HomeScreen(), // Katalog dibiarkan hidup agar tidak kehilangan posisi scroll
-          // TRIK AUTO REFRESH: Jika bukan tab favorit, ubah jadi kotak kosong
+          const HomeScreen(), 
+          // Logika Auto-Refresh untuk Favorit
           _selectedIndex == 1 ? const FavoritScreen() : const SizedBox.shrink(),
         ],
       ),
-      
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);
         },
-        backgroundColor: isDarkMode ? const Color(0xFF2A1C14) : const Color(0xFFEBE0C8),
+        backgroundColor: isDarkMode ? const Color(0xFF2A1C14) : const Color(0xFFEBE0C8), 
         indicatorColor: isDarkMode ? const Color(0xFF5D4037) : const Color(0xFFD4C4A8),
         destinations: const [
           NavigationDestination(

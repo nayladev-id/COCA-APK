@@ -41,9 +41,8 @@ class _HomeScreenState extends State<HomeScreen>
   String? _errorMessage;
   String _searchQuery = '';
   
-  // Variabel untuk membedakan Role
   bool _isOwner = false;
-  String _username = 'Coffee Lover'; // Nama default untuk Customer
+  String _username = 'Coffee Lover'; 
   String? _profilePicBase64;
   String _sortBy = 'default';
 
@@ -61,7 +60,6 @@ class _HomeScreenState extends State<HomeScreen>
     
     if (mounted) {
       setState(() {
-        // Logika Role: Jika ada nama dari AuthManager, berarti Owner sedang login
         if (name != null && name.isNotEmpty) {
           _username = name;
           _isOwner = true;
@@ -142,7 +140,6 @@ class _HomeScreenState extends State<HomeScreen>
     await AuthManager.logout();
     if (!mounted) return;
     
-    // Refresh halaman menjadi mode Customer
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const HomeScreen()),
     );
@@ -301,10 +298,10 @@ class _HomeScreenState extends State<HomeScreen>
               ),
               decoration: BoxDecoration(
                 color: theme.colorScheme.primary,
-                image: const DecorationImage(
-                  image: NetworkImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf'),
+                image: DecorationImage(
+                  image: const NetworkImage('https://images.unsplash.com/photo-1497935586351-b67a49e012bf'),
                   fit: BoxFit.cover,
-                  colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken),
+                  colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.54), BlendMode.darken),
                 ),
               ),
             ),
@@ -313,7 +310,6 @@ class _HomeScreenState extends State<HomeScreen>
               title: const Text('Beranda Web'),
               onTap: () => Navigator.pop(context),
             ),
-            // Menu Profil HANYA muncul untuk Owner
             if (_isOwner)
               ListTile(
                 leading: const Icon(Icons.person),
@@ -341,14 +337,13 @@ class _HomeScreenState extends State<HomeScreen>
               },
             ),
             const Divider(),
-            // Tombol Dinamis: Login Owner ATAU Logout
             ListTile(
               leading: Icon(_isOwner ? Icons.logout : Icons.admin_panel_settings, 
                             color: _isOwner ? Colors.red : Colors.brown),
               title: Text(_isOwner ? 'Logout' : 'Login Owner', 
                           style: TextStyle(color: _isOwner ? Colors.red : Colors.brown, fontWeight: FontWeight.bold)),
               onTap: () {
-                Navigator.pop(context); // Tutup drawer dulu
+                Navigator.pop(context);
                 if (_isOwner) {
                   _logout();
                 } else {
@@ -359,7 +354,6 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ),
-      // Tombol Mengambang (Floating) berbeda untuk Owner dan Customer
       floatingActionButton: _isOwner 
           ? FloatingActionButton.extended(
               onPressed: () => _showSnack('Fitur Kelola Menu Segera Hadir!'),
@@ -379,15 +373,14 @@ class _HomeScreenState extends State<HomeScreen>
               ? Center(child: Text(_errorMessage!))
               : Column(
                   children: [
-                    // --- HERO BANNER (CAFE WEB VIBE) ---
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
                       decoration: BoxDecoration(
                         image: DecorationImage(
-                          image: const NetworkImage('https://images.unsplash.com/photo-1447933601403-0c6688de566e?q=80&w=1000'), // Gambar biji kopi klasik
+                          image: const NetworkImage('https://images.unsplash.com/photo-1447933601403-0c6688de566e?q=80&w=1000'),
                           fit: BoxFit.cover,
-                          colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.65), BlendMode.darken),
+                          colorFilter: ColorFilter.mode(Colors.black.withValues(alpha: 0.65), BlendMode.darken),
                         ),
                       ),
                       child: const Column(
@@ -405,9 +398,6 @@ class _HomeScreenState extends State<HomeScreen>
                         ],
                       ),
                     ),
-                    // -----------------------------------
-                    
-                    // Kotak Pencarian & Filter
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                       child: Row(
@@ -419,7 +409,7 @@ class _HomeScreenState extends State<HomeScreen>
                                 hintText: 'Cari kopi favoritmu...',
                                 prefixIcon: const Icon(Icons.search),
                                 filled: true,
-                                fillColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
                                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
                               ),
@@ -429,13 +419,11 @@ class _HomeScreenState extends State<HomeScreen>
                           IconButton(
                             icon: const Icon(Icons.filter_list),
                             onPressed: _showSortOptions,
-                            style: IconButton.styleFrom(backgroundColor: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5)),
+                            style: IconButton.styleFrom(backgroundColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5)),
                           ),
                         ],
                       ),
                     ),
-                    
-                    // Tab Bar Menu Kopi
                     TabBar(
                       controller: _tabController,
                       tabs: const [
@@ -444,8 +432,6 @@ class _HomeScreenState extends State<HomeScreen>
                         Tab(icon: Icon(Icons.location_on), text: 'Lokal'),
                       ],
                     ),
-                    
-                    // List Katalog Kopi
                     Expanded(
                       child: TabBarView(
                         controller: _tabController,
