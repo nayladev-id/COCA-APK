@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/coffee_model.dart';
 import '../models/terjemahan_model.dart';
+import '../models/cart_model.dart'; // IMPORT MODEL KERANJANG
 import '../services/coffee_api_service.dart';
 import '../services/my_api_service.dart';
 import '../widgets/coffee_card.dart';
@@ -15,6 +16,7 @@ import '../utils/auth_manager.dart';
 import 'detail_screen.dart';
 import 'auth_screen.dart';
 import 'profile_screen.dart';
+import 'cart_screen.dart'; // IMPORT HALAMAN KERANJANG
 
 final ValueNotifier<Set<String>> favoriteNotifier = ValueNotifier<Set<String>>({});
 
@@ -266,6 +268,28 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         centerTitle: true,
         actions: [
+          // FITUR BARU: Ikon Keranjang dengan Notifikasi Badge
+          ValueListenableBuilder<List<CartItem>>(
+            valueListenable: cartNotifier,
+            builder: (context, cartItems, child) {
+              int totalMacamKopi = cartItems.length;
+              return IconButton(
+                icon: Badge(
+                  isLabelVisible: totalMacamKopi > 0, // Badge menyala kalau ada isinya
+                  label: Text(totalMacamKopi.toString()),
+                  child: const Icon(Icons.shopping_cart),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CartScreen()),
+                  );
+                },
+                tooltip: 'Buka Keranjang',
+              );
+            },
+          ),
+          // Tombol Tema Gelap/Terang
           ValueListenableBuilder<ThemeMode>(
             valueListenable: ThemeManager.themeNotifier,
             builder: (_, ThemeMode currentMode, __) {
