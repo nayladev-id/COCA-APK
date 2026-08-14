@@ -6,7 +6,7 @@ import '../models/terjemahan_model.dart';
 import '../models/cart_model.dart'; 
 import '../utils/image_overrides.dart';
 import '../utils/ingredient_translator.dart';
-import 'checkout_screen.dart'; // IMPORT HALAMAN CHECKOUT
+import 'checkout_screen.dart';
 
 class DetailScreen extends StatefulWidget {
   final CoffeeModel coffee;
@@ -42,13 +42,10 @@ class _DetailScreenState extends State<DetailScreen> {
     return widget.isIced ? 28000 : 25000;
   }
 
-  // Parameter isBeliLangsung untuk membedakan aksi tombol
-  // Parameter isBeliLangsung untuk membedakan aksi tombol
   void _prosesPesanan({required bool isBeliLangsung}) {
     final price = _getDummyPrice();
 
     if (isBeliLangsung) {
-      // JALUR VIP: Langsung kirim 1 kopi ini ke CheckoutScreen tanpa masuk keranjang
       final singleItem = CartItem(
         id: widget.coffee.id, 
         nama: widget.coffee.title,
@@ -61,12 +58,10 @@ class _DetailScreenState extends State<DetailScreen> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          // Kirim data via parameter directItem yang baru kita buat
           builder: (_) => CheckoutScreen(directItem: [singleItem]),
         ),
       );
     } else {
-      // JALUR NORMAL: Masukkan ke Keranjang
       final currentCart = List<CartItem>.from(cartNotifier.value);
       int existingIndex = currentCart.indexWhere((item) => 
           item.nama == widget.coffee.title && item.isIced == widget.isIced);
@@ -195,7 +190,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   }),
                   const SizedBox(height: 16),
                   Text('ID Sample API: ${coffee.id}', style: TextStyle(color: colorScheme.outline, fontSize: 12)),
-                  const SizedBox(height: 100), // Extra space untuk bottom bar yang baru
+                  const SizedBox(height: 100), 
                 ],
               ),
             ),
@@ -203,7 +198,6 @@ class _DetailScreenState extends State<DetailScreen> {
         ],
       ),
       
-      // BOTTOM BAR BARU: Layout 2 Baris (Kuantitas & Tombol Ganda)
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -216,7 +210,6 @@ class _DetailScreenState extends State<DetailScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Baris 1: Pengatur Jumlah & Total Harga
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -249,7 +242,6 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
               const SizedBox(height: 12),
               
-              // Baris 2: Tombol Ganda (+ Keranjang & Beli Langsung)
               Row(
                 children: [
                   Expanded(
@@ -267,15 +259,15 @@ class _DetailScreenState extends State<DetailScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: FilledButton.icon(
+                    // PERBAIKAN: Membuang .icon dan membuang Icon petir
+                    child: FilledButton(
                       onPressed: () => _prosesPesanan(isBeliLangsung: true),
-                      icon: const Icon(Icons.flash_on, size: 18),
-                      label: const Text('Beli Langsung'),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         backgroundColor: Colors.brown,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       ),
+                      child: const Text('Beli Langsung', style: TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
