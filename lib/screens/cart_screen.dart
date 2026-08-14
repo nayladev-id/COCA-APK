@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import '../models/cart_model.dart';
+import 'checkout_screen.dart';
 
 class CartScreen extends StatelessWidget {
   const CartScreen({super.key});
@@ -204,10 +205,12 @@ class CartScreen extends StatelessWidget {
                   ],
                 ),
                 FilledButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Menuju Checkout...')));
-                    // Nanti kita arahkan ke CheckoutScreen
-                  },
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CheckoutScreen()),
+                );
+              },
                   icon: const Icon(Icons.payment),
                   label: const Text('Checkout'),
                   style: FilledButton.styleFrom(
