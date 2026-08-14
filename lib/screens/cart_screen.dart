@@ -90,7 +90,6 @@ class CartScreen extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Gambar Kopi
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
@@ -105,7 +104,6 @@ class CartScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      // Detail Pesanan
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,9 +117,12 @@ class CartScreen extends StatelessWidget {
                               style: TextStyle(color: item.isIced ? Colors.blue : Colors.red, fontSize: 12),
                             ),
                             const SizedBox(height: 4),
-                            Text('Rp ${item.harga.toString()}', style: const TextStyle(fontWeight: FontWeight.w500)),
+                            // PERBAIKAN: Menampilkan Subtotal (Harga Asli x Jumlah)
+                            Text(
+                              'Rp ${item.subtotal}', 
+                              style: const TextStyle(fontWeight: FontWeight.w500),
+                            ),
                             
-                            // Menampilkan Catatan jika ada
                             if (item.catatan.isNotEmpty) ...[
                               const SizedBox(height: 8),
                               Container(
@@ -144,7 +145,6 @@ class CartScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                      // Pengatur Jumlah & Tombol Catatan
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -184,14 +184,12 @@ class CartScreen extends StatelessWidget {
         builder: (context, cartItems, child) {
           if (cartItems.isEmpty) return const SizedBox.shrink();
 
-          // Menghitung total harga semua item di keranjang
           int totalHarga = cartItems.fold(0, (sum, item) => sum + item.subtotal);
 
           return Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: theme.colorScheme.surface,
-              // Perbaikan deprecated member dengan .withValues(alpha: ...)
               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
             ),
             child: Row(
