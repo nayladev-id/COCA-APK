@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/coffee_model.dart';
 import '../models/terjemahan_model.dart';
-import '../models/cart_model.dart'; // IMPORT MODEL KERANJANG
+import '../models/cart_model.dart';
 import '../services/coffee_api_service.dart';
 import '../services/my_api_service.dart';
 import '../widgets/coffee_card.dart';
@@ -16,7 +16,8 @@ import '../utils/auth_manager.dart';
 import 'detail_screen.dart';
 import 'auth_screen.dart';
 import 'profile_screen.dart';
-import 'cart_screen.dart'; // IMPORT HALAMAN KERANJANG
+import 'cart_screen.dart';
+import 'live_order_screen.dart'; // IMPORT LAYAR DAPUR
 
 final ValueNotifier<Set<String>> favoriteNotifier = ValueNotifier<Set<String>>({});
 
@@ -268,14 +269,13 @@ class _HomeScreenState extends State<HomeScreen>
         ),
         centerTitle: true,
         actions: [
-          // FITUR BARU: Ikon Keranjang dengan Notifikasi Badge
           ValueListenableBuilder<List<CartItem>>(
             valueListenable: cartNotifier,
             builder: (context, cartItems, child) {
               int totalMacamKopi = cartItems.length;
               return IconButton(
                 icon: Badge(
-                  isLabelVisible: totalMacamKopi > 0, // Badge menyala kalau ada isinya
+                  isLabelVisible: totalMacamKopi > 0, 
                   label: Text(totalMacamKopi.toString()),
                   child: const Icon(Icons.shopping_cart),
                 ),
@@ -289,7 +289,6 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
-          // Tombol Tema Gelap/Terang
           ValueListenableBuilder<ThemeMode>(
             valueListenable: ThemeManager.themeNotifier,
             builder: (_, ThemeMode currentMode, __) {
@@ -378,11 +377,14 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ),
+      // PERBAIKAN LOGIKA TOMBOL FLOATING ACTION
       floatingActionButton: _isOwner 
           ? FloatingActionButton.extended(
-              onPressed: () => _showSnack('Fitur Kelola Menu Segera Hadir!'),
-              icon: const Icon(Icons.edit_document),
-              label: const Text('Kelola Katalog'),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const LiveOrderScreen()));
+              },
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('Live Orders'),
               backgroundColor: Colors.brown,
               foregroundColor: Colors.white,
             )

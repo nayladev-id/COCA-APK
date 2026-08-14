@@ -2,7 +2,8 @@
 
 import 'package:flutter/material.dart';
 import '../models/cart_model.dart';
-import 'home_screen.dart'; 
+import '../models/order_model.dart'; // IMPORT DATABASE PESANAN
+import 'home_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -13,7 +14,7 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   final TextEditingController _mejaController = TextEditingController();
-  String _selectedPayment = 'QRIS'; 
+  String _selectedPayment = 'QRIS';
 
   void _prosesPembayaran(int totalBelanja) {
     if (_mejaController.text.trim().isEmpty) {
@@ -46,27 +47,22 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               const SizedBox(height: 16),
               const Text('BCA: 1234567890\nA.N. Vintage Roastery', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              // PERBAIKAN: Menghapus const karena ada variabel $totalBelanja
               Text('Silakan transfer sesuai nominal:\nRp $totalBelanja', textAlign: TextAlign.center),
             ] else ...[
               const Icon(Icons.payments, size: 80, color: Colors.green),
               const SizedBox(height: 16),
               const Text('Pesanan Anda akan segera diantar.\nMohon siapkan uang pas sebesar:', textAlign: TextAlign.center),
               const SizedBox(height: 8),
-              // PERBAIKAN: Menghapus const karena ada variabel $totalBelanja
               Text('Rp $totalBelanja', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
             ],
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx), 
-            child: const Text('Batal')
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
           FilledButton(
             onPressed: () {
-              Navigator.pop(ctx); 
-              _selesaikanPesanan(); 
+              Navigator.pop(ctx);
+              _selesaikanPesanan(totalBelanja); // Bawa total belanja ke fungsi ini
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.brown),
             child: const Text('Saya Sudah Bayar'),
@@ -76,9 +72,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
-  void _selesaikanPesanan() {
+  void _selesaikanPesanan(int totalBelanja) {
+    // 1. Bungkus data pesanan dan lemparkan ke dapur (Order Database)
+    final newOrder = OrderModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(), // Bikin ID unik dari waktu
+      meja: _mejaController.text.trim(),
+      items: List.from(cartNotifier.value), // Salin isi keranjang
+      totalHarga: totalBelanja,
+      paymentMethod: _selectedPayment,
+      createdAt: DateTime.now(),
+    );
+    
+    globalOrderNotifier.value = [newOrder, ...globalOrderNotifier.value]; // Masukkan ke urutan paling atas
+
+    // 2. Kosongkan keranjang pelanggan
     cartNotifier.value = [];
     
+    // 3. Kembali ke Home
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const HomeScreen()),
       (Route<dynamic> route) => false,
@@ -100,10 +110,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     final totalHarga = cartItems.fold(0, (sum, item) => sum + item.subtotal);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Checkout'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Checkout'), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -161,7 +168,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
               child: Column(
                 children: [
-                  // PERBAIKAN: Mengganti RadioListTile yang usang dengan ListTile + Radio
                   ListTile(
                     leading: Radio<String>(
                       value: 'QRIS',
@@ -200,7 +206,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ],
         ),
       ),
-      
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -215,10 +220,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               backgroundColor: Colors.brown,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
             ),
-            child: Text(
-              'Bayar Rp $totalHarga',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            child: Text('Bayar Rp $totalHarga', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ),
       ),
