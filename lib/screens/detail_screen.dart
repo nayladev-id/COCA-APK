@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/coffee_model.dart';
 import '../models/terjemahan_model.dart';
 import '../models/cart_model.dart'; 
-import '../models/stock_model.dart'; // IMPORT MODEL STOK
+import '../models/stock_model.dart'; // MENGGUNAKAN STOCK MODEL TERBARU
 import '../utils/image_overrides.dart';
 import '../utils/ingredient_translator.dart';
 import 'checkout_screen.dart';
@@ -199,14 +199,14 @@ class _DetailScreenState extends State<DetailScreen> {
         ],
       ),
       
-      // PERBAIKAN: Membungkus BottomBar untuk mengecek Status Stok
-      bottomNavigationBar: ValueListenableBuilder<Set<String>>(
-        valueListenable: outOfStockNotifier,
-        builder: (context, outOfStockSet, child) {
-          final isHabis = outOfStockSet.contains(coffee.title);
+      // PERBAIKAN: Membaca stockNotifier (Sistem Angka Stok)
+      bottomNavigationBar: ValueListenableBuilder<Map<String, int>>(
+        valueListenable: stockNotifier,
+        builder: (context, stockMap, child) {
+          final currentStock = stockMap[coffee.title] ?? 20;
+          final isHabis = currentStock <= 0;
           final theme = Theme.of(context);
 
-          // Tampilan Jika Kopi Habis
           if (isHabis) {
             return Container(
               padding: const EdgeInsets.all(20),
@@ -216,7 +216,7 @@ class _DetailScreenState extends State<DetailScreen> {
               ),
               child: SafeArea(
                 child: FilledButton.icon(
-                  onPressed: null, // Tombol dimatikan
+                  onPressed: null, 
                   icon: const Icon(Icons.block),
                   label: const Text('Stok Sedang Habis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   style: FilledButton.styleFrom(
@@ -230,7 +230,6 @@ class _DetailScreenState extends State<DetailScreen> {
             );
           }
 
-          // Tampilan Normal Jika Kopi Tersedia
           return Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -262,7 +261,21 @@ class _DetailScreenState extends State<DetailScreen> {
                             Text('$_quantity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             IconButton(
                               icon: const Icon(Icons.add),
-                              onPressed: () => setState(() => _quantity++),
+                              onPressed: () {
+                                // Validasi pesanan tidak boleh melebihi stok yang ada
+                                if (_quantity < currentStock) {
+                                  setState(() => _quantity++);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Maaf, sisa stok hanya $currentStock cup!'),
+                                      backgroundColor: Colors.red,
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
                             ),
                           ],
                         ),

@@ -3,10 +3,10 @@
 import 'package:flutter/material.dart';
 import '../models/cart_model.dart';
 import '../models/order_model.dart';
+import '../models/stock_model.dart'; // IMPORT INI WAJIB ADA
 import 'home_screen.dart';
 
 class CheckoutScreen extends StatefulWidget {
-  // PERBAIKAN: Menambahkan opsi pesanan langsung (Jalur VIP)
   final List<CartItem>? directItem; 
   
   const CheckoutScreen({super.key, this.directItem});
@@ -24,7 +24,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   @override
   void initState() {
     super.initState();
-    // PERBAIKAN: Jika ada directItem (Beli Langsung), pakai itu. Jika tidak, pakai Keranjang Global.
     _itemsToCheckout = widget.directItem ?? cartNotifier.value;
   }
 
@@ -85,10 +84,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _selesaikanPesanan(int totalBelanja) {
+    // 1. Catat Pesanan ke Database
     final newOrder = OrderModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       meja: _mejaController.text.trim(),
-      items: List.from(_itemsToCheckout), // Menggunakan data yang di-checkout, bukan selalu global cart
+      items: List.from(_itemsToCheckout), 
       totalHarga: totalBelanja,
       paymentMethod: _selectedPayment,
       createdAt: DateTime.now(),
@@ -96,11 +96,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     
     globalOrderNotifier.value = [newOrder, ...globalOrderNotifier.value]; 
 
-    // PERBAIKAN: Hanya kosongkan keranjang pelanggan JIKA yang di-checkout adalah Keranjang Global
+    // 2. LOGIKA BARU: PENGURANGAN STOK OTOMATIS
+    final currentStockMap = Map<String, int>.from(stockNotifier.value);
+    for (var item in _itemsToCheckout) {
+      final stokAwal = currentStockMap[item.nama] ?? 20; 
+      currentStockMap[item.nama] = stokAwal - item.quantity;
+    }
+    stockNotifier.value = currentStockMap;
+
+    // 3. Bersihkan Keranjang Pelanggan
     if (widget.directItem == null) {
       cartNotifier.value = [];
     }
     
+    // 4. Kembali ke Home
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const HomeScreen()),
       (Route<dynamic> route) => false,
@@ -111,6 +120,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         content: Text('🎉 Pesanan diterima! Barista kami sedang meracik kopimu.'),
         backgroundColor: Colors.green,
         duration: Duration(seconds: 4),
+      ),
+    );
+  }
+
+  // WIDGET BARU: Kartu Pilihan Pembayaran (Bebas dari Error Deprecated)
+  Widget _buildPaymentCard(String title, String value, IconData icon, Color color) {
+    final isSelected = _selectedPayment == value;
+    final theme = Theme.of(context);
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        onTap: () => setState(() => _selectedPayment = value),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isSelected ? color.withValues(alpha: 0.1) : theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isSelected ? color : theme.colorScheme.outline.withValues(alpha: 0.2),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  title, 
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    color: isSelected ? color.withValues(alpha: 0.8).withRed(0) : null,
+                  ),
+                ),
+              ),
+              if (isSelected) Icon(Icons.check_circle, color: color),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -171,49 +221,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
             const Text('💳 Metode Pembayaran', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 8),
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: theme.colorScheme.outline.withValues(alpha: 0.2)),
-              ),
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: Radio<String>(
-                      value: 'QRIS',
-                      groupValue: _selectedPayment,
-                      onChanged: (val) => setState(() => _selectedPayment = val.toString()),
-                    ),
-                    title: const Text('QRIS (Gopay, OVO, Dana)'),
-                    trailing: const Icon(Icons.qr_code, color: Colors.pink),
-                    onTap: () => setState(() => _selectedPayment = 'QRIS'),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: Radio<String>(
-                      value: 'Transfer Bank',
-                      groupValue: _selectedPayment,
-                      onChanged: (val) => setState(() => _selectedPayment = val.toString()),
-                    ),
-                    title: const Text('Transfer Bank'),
-                    trailing: const Icon(Icons.account_balance, color: Colors.blue),
-                    onTap: () => setState(() => _selectedPayment = 'Transfer Bank'),
-                  ),
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: Radio<String>(
-                      value: 'Cash',
-                      groupValue: _selectedPayment,
-                      onChanged: (val) => setState(() => _selectedPayment = val.toString()),
-                    ),
-                    title: const Text('Bayar Tunai di Meja'),
-                    trailing: const Icon(Icons.payments, color: Colors.green),
-                    onTap: () => setState(() => _selectedPayment = 'Cash'),
-                  ),
-                ],
-              ),
-            ),
+            
+            // Menggunakan desain kartu pilihan yang baru
+            _buildPaymentCard('QRIS (Gopay, OVO, Dana)', 'QRIS', Icons.qr_code_scanner, Colors.pink),
+            _buildPaymentCard('Transfer Bank', 'Transfer Bank', Icons.account_balance, Colors.blue),
+            _buildPaymentCard('Bayar Tunai di Meja', 'Cash', Icons.payments, Colors.green),
           ],
         ),
       ),
