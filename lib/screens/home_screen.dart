@@ -260,6 +260,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     
     return Scaffold(
       appBar: AppBar(
@@ -270,9 +271,9 @@ class _HomeScreenState extends State<HomeScreen>
           },
           child: const Text('☕ Coffee Catalog'),
         ),
-        centerTitle: false, // Digeser ke kiri agar ruang ikon di kanan lebih lega
+        centerTitle: false, 
         actions: [
-          // 1. Ikon Favorit (Baru)
+          // 1. Ikon Favorit
           IconButton(
             icon: const Icon(Icons.favorite_border, color: Colors.red),
             onPressed: () {
@@ -301,32 +302,46 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
-          // 3. Ikon Tema Terang/Gelap
-          ValueListenableBuilder<ThemeMode>(
-            valueListenable: ThemeManager.themeNotifier,
-            builder: (_, ThemeMode currentMode, __) {
-              final isDark = currentMode == ThemeMode.dark;
-              return IconButton(
-                icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-                onPressed: ThemeManager.toggleTheme,
-                tooltip: isDark ? 'Terang' : 'Gelap',
-              );
+          // 3. Menu Titik Tiga (Mengelompokkan Tema & Login)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'tema') {
+                ThemeManager.toggleTheme();
+              } else if (value == 'login') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
+              }
+            },
+            itemBuilder: (BuildContext context) {
+              return [
+                PopupMenuItem<String>(
+                  value: 'tema',
+                  child: Row(
+                    children: [
+                      Icon(isDark ? Icons.light_mode : Icons.dark_mode, size: 20, color: Colors.grey),
+                      const SizedBox(width: 12),
+                      Text(isDark ? 'Mode Terang' : 'Mode Gelap'),
+                    ],
+                  ),
+                ),
+                if (!_isOwner) // Tampilkan tombol login di menu hanya jika belum login
+                  const PopupMenuItem<String>(
+                    value: 'login',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_outline, size: 20, color: Colors.grey),
+                        SizedBox(width: 12),
+                        Text('Login Owner'),
+                      ],
+                    ),
+                  ),
+              ];
             },
           ),
-          // 4. Ikon Login (Hanya muncul untuk Customer)
-          if (!_isOwner)
-            IconButton(
-              icon: const Icon(Icons.person_outline),
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
-              },
-              tooltip: 'Login Owner',
-            ),
-          const SizedBox(width: 8), // Sedikit jarak di ujung kanan
+          const SizedBox(width: 4),
         ],
       ),
       
-      // PERBAIKAN: Drawer HANYA muncul kalau yang login adalah Owner
       drawer: _isOwner ? Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -396,7 +411,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ],
         ),
-      ) : null, // Jika bukan owner, nilai drawer = null (menghilang)
+      ) : null, 
 
       floatingActionButton: _isOwner 
           ? FloatingActionButton.extended(
