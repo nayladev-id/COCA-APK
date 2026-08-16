@@ -17,8 +17,9 @@ import 'detail_screen.dart';
 import 'auth_screen.dart';
 import 'profile_screen.dart';
 import 'cart_screen.dart';
-import 'live_order_screen.dart'; // IMPORT LAYAR DAPUR
+import 'live_order_screen.dart';
 import 'admin_dashboard_screen.dart';
+import 'manage_stock_screen.dart'; // IMPORT LAYAR STOK
 
 final ValueNotifier<Set<String>> favoriteNotifier = ValueNotifier<Set<String>>({});
 
@@ -344,16 +345,27 @@ class _HomeScreenState extends State<HomeScreen>
                   _loadUser();
                 },
               ),
-              if (_isOwner)
-           ListTile(
-             leading: const Icon(Icons.analytics),
-             title: const Text('Laporan & Dasbor Owner'),
-             subtitle: const Text('Lihat omzet & statistik pesanan'),
-             onTap: () {
-               Navigator.pop(context);
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
-             },
-           ),
+            if (_isOwner)
+              ListTile(
+                leading: const Icon(Icons.analytics),
+                title: const Text('Laporan & Dasbor Owner'),
+                subtitle: const Text('Lihat omzet & statistik pesanan'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+                },
+              ),
+            // MENU BARU: Kelola Stok
+            if (_isOwner)
+              ListTile(
+                leading: const Icon(Icons.inventory),
+                title: const Text('Kelola Stok Menu'),
+                subtitle: const Text('Atur status ketersediaan kopi'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageStockScreen()));
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.map),
               title: const Text('Lokasi Kafe'),
@@ -388,7 +400,6 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ),
-      // PERBAIKAN LOGIKA TOMBOL FLOATING ACTION
       floatingActionButton: _isOwner 
           ? FloatingActionButton.extended(
               onPressed: () {
