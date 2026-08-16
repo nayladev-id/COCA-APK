@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/coffee_model.dart';
 import '../models/terjemahan_model.dart';
 import '../models/cart_model.dart';
+import '../models/order_model.dart'; 
 import '../services/coffee_api_service.dart';
 import '../services/my_api_service.dart';
 import '../widgets/coffee_card.dart';
@@ -212,48 +213,120 @@ class _HomeScreenState extends State<HomeScreen>
       return const Center(child: Text('Tidak ada kopi yang sesuai.'));
     }
 
-    return ValueListenableBuilder<Set<String>>(
-      valueListenable: favoriteNotifier,
-      builder: (context, favoriteSet, child) {
-        return RefreshIndicator(
-          onRefresh: _loadData,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: filteredCoffees.length,
-            itemBuilder: (context, index) {
-              final coffee = filteredCoffees[index];
-              final terjemahanKey = isIced ? coffee.id + 10000 : coffee.id;
-              final terjemahan = _terjemahanMap[terjemahanKey];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: CoffeeCard(
-                  coffee: coffee,
-                  deskripsiId: terjemahan?.deskripsiId,
-                  isFavorit: favoriteSet.contains(coffee.title),
-                  isIced: isIced,
-                  onFavoritToggle: () => _toggleFavorit(coffee),
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DetailScreen(
+    return ValueListenableBuilder<List<OrderModel>>(
+      valueListenable: globalOrderNotifier,
+      builder: (context, orders, child) {
+        
+        Map<String, int> salesCount = {};
+        for (var order in orders) {
+          for (var item in order.items) {
+            salesCount[item.nama] = (salesCount[item.nama] ?? 0) + item.quantity;
+          }
+        }
+        
+        int maxSales = 0;
+        if (salesCount.isNotEmpty) {
+          maxSales = salesCount.values.reduce((a, b) => a > b ? a : b);
+        }
+        
+        Set<String> bestSellers = salesCount.entries
+            .where((e) => e.value == maxSales && maxSales > 0)
+            .map((e) => e.key)
+            .toSet();
+
+        return ValueListenableBuilder<Set<String>>(
+          valueListenable: favoriteNotifier,
+          builder: (context, favoriteSet, child) {
+            return RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: filteredCoffees.length,
+                itemBuilder: (context, index) {
+                  final coffee = filteredCoffees[index];
+                  final terjemahanKey = isIced ? coffee.id + 10000 : coffee.id;
+                  final terjemahan = _terjemahanMap[terjemahanKey];
+                  
+                  final isBestSeller = bestSellers.contains(coffee.title);
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CoffeeCard(
                           coffee: coffee,
-                          terjemahan: terjemahan,
+                          deskripsiId: terjemahan?.deskripsiId,
                           isFavorit: favoriteSet.contains(coffee.title),
                           isIced: isIced,
-                          onFavoritToggle: () {
-                            _toggleFavorit(coffee);
+                          onFavoritToggle: () => _toggleFavorit(coffee),
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DetailScreen(
+                                  coffee: coffee,
+                                  terjemahan: terjemahan,
+                                  isFavorit: favoriteSet.contains(coffee.title),
+                                  isIced: isIced,
+                                  onFavoritToggle: () {
+                                    _toggleFavorit(coffee);
+                                  },
+                                ),
+                              ),
+                            );
                           },
                         ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
+                        
+                        // POSISI BARU: Pojok Kanan Atas agar foto kopi terlihat penuh!
+                        if (isBestSeller)
+                          Positioned(
+                            top: 4, // Margin atas sejajar dengan kartu
+                            right: 4, // Pindah ke kanan
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.brown.shade800,
+                                borderRadius: const BorderRadius.only(
+                                  topRight: Radius.circular(16), // Melengkung mengikuti sudut atas kartu
+                                  bottomLeft: Radius.circular(12),
+                                ),
+                                border: Border.all(color: Colors.amber.shade300, width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(-2, 2),
+                                  )
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.workspace_premium, color: Colors.amber.shade300, size: 14),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Paling Laku', 
+                                    style: TextStyle(
+                                      color: Colors.white, 
+                                      fontWeight: FontWeight.bold, 
+                                      fontSize: 11,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
         );
-      },
+      }
     );
   }
 
@@ -264,7 +337,6 @@ class _HomeScreenState extends State<HomeScreen>
     
     return Scaffold(
       appBar: AppBar(
-        // PERBAIKAN: Menghapus GestureDetector (Fungsi Double Tap)
         title: const Text('☕ Coffee Catalog'),
         centerTitle: false, 
         actions: [
