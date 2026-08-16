@@ -264,16 +264,10 @@ class _HomeScreenState extends State<HomeScreen>
     
     return Scaffold(
       appBar: AppBar(
-        title: GestureDetector(
-          onDoubleTap: () {
-            _showSnack('Membuka Akses Owner...');
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
-          },
-          child: const Text('☕ Coffee Catalog'),
-        ),
+        // PERBAIKAN: Menghapus GestureDetector (Fungsi Double Tap)
+        title: const Text('☕ Coffee Catalog'),
         centerTitle: false, 
         actions: [
-          // 1. Ikon Favorit
           IconButton(
             icon: const Icon(Icons.favorite_border, color: Colors.red),
             onPressed: () {
@@ -281,7 +275,6 @@ class _HomeScreenState extends State<HomeScreen>
             },
             tooltip: 'Kopi Favorit',
           ),
-          // 2. Ikon Keranjang
           ValueListenableBuilder<List<CartItem>>(
             valueListenable: cartNotifier,
             builder: (context, cartItems, child) {
@@ -302,7 +295,6 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
-          // 3. Menu Titik Tiga (Mengelompokkan Tema & Login)
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
@@ -324,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen>
                     ],
                   ),
                 ),
-                if (!_isOwner) // Tampilkan tombol login di menu hanya jika belum login
+                if (!_isOwner)
                   const PopupMenuItem<String>(
                     value: 'login',
                     child: Row(
