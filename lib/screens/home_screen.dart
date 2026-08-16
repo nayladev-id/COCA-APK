@@ -19,7 +19,8 @@ import 'profile_screen.dart';
 import 'cart_screen.dart';
 import 'live_order_screen.dart';
 import 'admin_dashboard_screen.dart';
-import 'manage_stock_screen.dart'; // IMPORT LAYAR STOK
+import 'manage_stock_screen.dart'; 
+import 'favorit_screen.dart'; 
 
 final ValueNotifier<Set<String>> favoriteNotifier = ValueNotifier<Set<String>>({});
 
@@ -269,8 +270,17 @@ class _HomeScreenState extends State<HomeScreen>
           },
           child: const Text('☕ Coffee Catalog'),
         ),
-        centerTitle: true,
+        centerTitle: false, // Digeser ke kiri agar ruang ikon di kanan lebih lega
         actions: [
+          // 1. Ikon Favorit (Baru)
+          IconButton(
+            icon: const Icon(Icons.favorite_border, color: Colors.red),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritScreen()));
+            },
+            tooltip: 'Kopi Favorit',
+          ),
+          // 2. Ikon Keranjang
           ValueListenableBuilder<List<CartItem>>(
             valueListenable: cartNotifier,
             builder: (context, cartItems, child) {
@@ -291,6 +301,7 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
+          // 3. Ikon Tema Terang/Gelap
           ValueListenableBuilder<ThemeMode>(
             valueListenable: ThemeManager.themeNotifier,
             builder: (_, ThemeMode currentMode, __) {
@@ -302,22 +313,34 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
+          // 4. Ikon Login (Hanya muncul untuk Customer)
+          if (!_isOwner)
+            IconButton(
+              icon: const Icon(Icons.person_outline),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
+              },
+              tooltip: 'Login Owner',
+            ),
+          const SizedBox(width: 8), // Sedikit jarak di ujung kanan
         ],
       ),
-      drawer: Drawer(
+      
+      // PERBAIKAN: Drawer HANYA muncul kalau yang login adalah Owner
+      drawer: _isOwner ? Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
               accountName: Text(_username,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              accountEmail: Text(_isOwner ? 'Administrator Kafe' : 'Selamat Datang di Kafe Kami!'),
+              accountEmail: const Text('Administrator Kafe'),
               currentAccountPicture: CircleAvatar(
                 backgroundColor: Colors.white,
-                backgroundImage: _isOwner && _profilePicBase64 != null
+                backgroundImage: _profilePicBase64 != null
                     ? MemoryImage(base64Decode(_profilePicBase64!))
                     : null,
-                child: (!_isOwner || _profilePicBase64 == null)
+                child: _profilePicBase64 == null
                     ? const Icon(Icons.coffee, size: 40, color: Colors.grey)
                     : null,
               ),
@@ -335,71 +358,46 @@ class _HomeScreenState extends State<HomeScreen>
               title: const Text('Beranda Web'),
               onTap: () => Navigator.pop(context),
             ),
-            if (_isOwner)
-              ListTile(
-                leading: const Icon(Icons.person),
-                title: const Text('Profil Saya'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-                  _loadUser();
-                },
-              ),
-            if (_isOwner)
-              ListTile(
-                leading: const Icon(Icons.analytics),
-                title: const Text('Laporan & Dasbor Owner'),
-                subtitle: const Text('Lihat omzet & statistik pesanan'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
-                },
-              ),
-            // MENU BARU: Kelola Stok
-            if (_isOwner)
-              ListTile(
-                leading: const Icon(Icons.inventory),
-                title: const Text('Kelola Stok Menu'),
-                subtitle: const Text('Atur status ketersediaan kopi'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageStockScreen()));
-                },
-              ),
             ListTile(
-              leading: const Icon(Icons.map),
-              title: const Text('Lokasi Kafe'),
-              subtitle: const Text('Kunjungi kami secara langsung'),
-              onTap: () {
+              leading: const Icon(Icons.person),
+              title: const Text('Profil Saya'),
+              onTap: () async {
                 Navigator.pop(context);
-                _openMap();
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                _loadUser();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.brightness_6),
-              title: const Text('Ganti Tema (Estetika)'),
+              leading: const Icon(Icons.analytics),
+              title: const Text('Laporan & Dasbor Owner'),
+              subtitle: const Text('Lihat omzet & statistik pesanan'),
               onTap: () {
-                ThemeManager.toggleTheme();
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.inventory),
+              title: const Text('Kelola Stok Menu'),
+              subtitle: const Text('Atur status ketersediaan kopi'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageStockScreen()));
               },
             ),
             const Divider(),
             ListTile(
-              leading: Icon(_isOwner ? Icons.logout : Icons.admin_panel_settings, 
-                            color: _isOwner ? Colors.red : Colors.brown),
-              title: Text(_isOwner ? 'Logout' : 'Login Owner', 
-                          style: TextStyle(color: _isOwner ? Colors.red : Colors.brown, fontWeight: FontWeight.bold)),
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.pop(context);
-                if (_isOwner) {
-                  _logout();
-                } else {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
-                }
+                _logout();
               },
             ),
           ],
         ),
-      ),
+      ) : null, // Jika bukan owner, nilai drawer = null (menghilang)
+
       floatingActionButton: _isOwner 
           ? FloatingActionButton.extended(
               onPressed: () {
