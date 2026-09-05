@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/coffee_model.dart';
 import '../models/terjemahan_model.dart';
 import '../models/cart_model.dart'; 
+import '../models/stock_model.dart'; // MENGGUNAKAN STOCK MODEL TERBARU
 import '../utils/image_overrides.dart';
 import '../utils/ingredient_translator.dart';
 import 'checkout_screen.dart';
@@ -198,83 +199,128 @@ class _DetailScreenState extends State<DetailScreen> {
         ],
       ),
       
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5)),
-          ],
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove),
-                          onPressed: () {
-                            if (_quantity > 1) setState(() => _quantity--);
-                          },
-                        ),
-                        Text('$_quantity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: () => setState(() => _quantity++),
-                        ),
-                      ],
-                    ),
+      // PERBAIKAN: Membaca stockNotifier (Sistem Angka Stok)
+      bottomNavigationBar: ValueListenableBuilder<Map<String, int>>(
+        valueListenable: stockNotifier,
+        builder: (context, stockMap, child) {
+          final currentStock = stockMap[coffee.title] ?? 20;
+          final isHabis = currentStock <= 0;
+          final theme = Theme.of(context);
+
+          if (isHabis) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
+              ),
+              child: SafeArea(
+                child: FilledButton.icon(
+                  onPressed: null, 
+                  icon: const Icon(Icons.block),
+                  label: const Text('Stok Sedang Habis', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: FilledButton.styleFrom(
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    disabledForegroundColor: Colors.grey.shade600,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                   ),
-                  Text(
-                    'Rp $totalHarga', 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ),
+            );
+          }
+
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5)),
+              ],
+            ),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.remove),
+                              onPressed: () {
+                                if (_quantity > 1) setState(() => _quantity--);
+                              },
+                            ),
+                            Text('$_quantity', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            IconButton(
+                              icon: const Icon(Icons.add),
+                              onPressed: () {
+                                // Validasi pesanan tidak boleh melebihi stok yang ada
+                                if (_quantity < currentStock) {
+                                  setState(() => _quantity++);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Maaf, sisa stok hanya $currentStock cup!'),
+                                      backgroundColor: Colors.red,
+                                      behavior: SnackBarBehavior.floating,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        'Rp $totalHarga', 
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _prosesPesanan(isBeliLangsung: false),
+                          icon: const Icon(Icons.add_shopping_cart, size: 18),
+                          label: const Text('+ Keranjang'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: Colors.brown,
+                            side: const BorderSide(color: Colors.brown),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => _prosesPesanan(isBeliLangsung: true),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            backgroundColor: Colors.brown,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                          ),
+                          child: const Text('Beli Langsung', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _prosesPesanan(isBeliLangsung: false),
-                      icon: const Icon(Icons.add_shopping_cart, size: 18),
-                      label: const Text('+ Keranjang'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        foregroundColor: Colors.brown,
-                        side: const BorderSide(color: Colors.brown),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    // PERBAIKAN: Membuang .icon dan membuang Icon petir
-                    child: FilledButton(
-                      onPressed: () => _prosesPesanan(isBeliLangsung: true),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        backgroundColor: Colors.brown,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                      ),
-                      child: const Text('Beli Langsung', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+            ),
+          );
+        }
       ),
     );
   }

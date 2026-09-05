@@ -1,5 +1,4 @@
 // lib/widgets/coffee_card.dart
-// Komponen kartu kopi yang reusable — dipakai di HomeScreen
 
 import 'package:flutter/material.dart';
 import '../models/coffee_model.dart';
@@ -7,28 +6,29 @@ import '../utils/image_overrides.dart';
 
 class CoffeeCard extends StatelessWidget {
   final CoffeeModel coffee;
-  final String? deskripsiId;   // dari API sendiri, bisa null jika belum ada terjemahan
-  final bool isFavorit;
+  final String? deskripsiId;
   final bool isIced;
+  final bool? isFavorit; // Parameter dipertahankan agar tidak memicu error di halaman lain
+  final VoidCallback? onFavoritToggle; // Parameter dipertahankan
   final VoidCallback onTap;
-  final VoidCallback onFavoritToggle;
 
   const CoffeeCard({
     super.key,
     required this.coffee,
     this.deskripsiId,
-    required this.isFavorit,
     required this.isIced,
+    this.isFavorit,
+    this.onFavoritToggle,
     required this.onTap,
-    required this.onFavoritToggle,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
 
     return Card(
       elevation: 2,
+      shadowColor: Colors.black26,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -36,63 +36,56 @@ class CoffeeCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Gambar kopi
+            // 1. Gambar Kopi
             SizedBox(
-              width: 110,
-              height: 110,
+              width: 120,
+              height: 120,
               child: ImageOverrides.buildImage(
                 title: coffee.title,
                 isIced: isIced,
                 networkUrl: coffee.image,
                 fit: BoxFit.cover,
                 errorWidget: Container(
-                  color: colorScheme.surfaceContainerHighest,
-                  child: Icon(Icons.coffee,
-                      size: 48, color: colorScheme.onSurfaceVariant),
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  child: const Icon(Icons.coffee, size: 40, color: Colors.grey),
                 ),
               ),
             ),
-            // Konten teks
+            // 2. Detail Teks & Harga
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 4, 12),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       coffee.title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      // Tampilkan deskripsi Indonesia jika ada, fallback ke deskripsi asli
-                      deskripsiId != null && deskripsiId!.isNotEmpty
-                          ? deskripsiId!
-                          : coffee.description,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
+                      deskripsiId ?? coffee.description,
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 12),
+                    Text(
+                      isIced ? 'Rp 28.000' : 'Rp 25.000',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.brown,
+                        fontSize: 15,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
-            // Tombol favorit
-            IconButton(
-              icon: Icon(
-                isFavorit ? Icons.favorite : Icons.favorite_border,
-                color: isFavorit ? Colors.red : colorScheme.onSurfaceVariant,
-              ),
-              onPressed: onFavoritToggle,
-              tooltip: isFavorit ? 'Hapus dari favorit' : 'Tambah ke favorit',
-            ),
+            // IKON LOVE (FAVORIT) RESMI DIHILANGKAN DARI KARTU!
+            // Sekarang pelanggan hanya bisa menjadikan favorit lewat halaman Detail
           ],
         ),
       ),

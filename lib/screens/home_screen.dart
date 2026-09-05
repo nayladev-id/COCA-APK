@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/coffee_model.dart';
 import '../models/terjemahan_model.dart';
 import '../models/cart_model.dart';
+import '../models/order_model.dart'; 
 import '../services/coffee_api_service.dart';
 import '../services/my_api_service.dart';
 import '../widgets/coffee_card.dart';
@@ -17,8 +18,10 @@ import 'detail_screen.dart';
 import 'auth_screen.dart';
 import 'profile_screen.dart';
 import 'cart_screen.dart';
-import 'live_order_screen.dart'; // IMPORT LAYAR DAPUR
+import 'live_order_screen.dart';
 import 'admin_dashboard_screen.dart';
+import 'manage_stock_screen.dart'; 
+import 'favorit_screen.dart'; 
 
 final ValueNotifier<Set<String>> favoriteNotifier = ValueNotifier<Set<String>>({});
 
@@ -210,66 +213,140 @@ class _HomeScreenState extends State<HomeScreen>
       return const Center(child: Text('Tidak ada kopi yang sesuai.'));
     }
 
-    return ValueListenableBuilder<Set<String>>(
-      valueListenable: favoriteNotifier,
-      builder: (context, favoriteSet, child) {
-        return RefreshIndicator(
-          onRefresh: _loadData,
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: filteredCoffees.length,
-            itemBuilder: (context, index) {
-              final coffee = filteredCoffees[index];
-              final terjemahanKey = isIced ? coffee.id + 10000 : coffee.id;
-              final terjemahan = _terjemahanMap[terjemahanKey];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: CoffeeCard(
-                  coffee: coffee,
-                  deskripsiId: terjemahan?.deskripsiId,
-                  isFavorit: favoriteSet.contains(coffee.title),
-                  isIced: isIced,
-                  onFavoritToggle: () => _toggleFavorit(coffee),
-                  onTap: () async {
-                    await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => DetailScreen(
+    return ValueListenableBuilder<List<OrderModel>>(
+      valueListenable: globalOrderNotifier,
+      builder: (context, orders, child) {
+        
+        Map<String, int> salesCount = {};
+        for (var order in orders) {
+          for (var item in order.items) {
+            salesCount[item.nama] = (salesCount[item.nama] ?? 0) + item.quantity;
+          }
+        }
+        
+        int maxSales = 0;
+        if (salesCount.isNotEmpty) {
+          maxSales = salesCount.values.reduce((a, b) => a > b ? a : b);
+        }
+        
+        Set<String> bestSellers = salesCount.entries
+            .where((e) => e.value == maxSales && maxSales > 0)
+            .map((e) => e.key)
+            .toSet();
+
+        return ValueListenableBuilder<Set<String>>(
+          valueListenable: favoriteNotifier,
+          builder: (context, favoriteSet, child) {
+            return RefreshIndicator(
+              onRefresh: _loadData,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: filteredCoffees.length,
+                itemBuilder: (context, index) {
+                  final coffee = filteredCoffees[index];
+                  final terjemahanKey = isIced ? coffee.id + 10000 : coffee.id;
+                  final terjemahan = _terjemahanMap[terjemahanKey];
+                  
+                  final isBestSeller = bestSellers.contains(coffee.title);
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        CoffeeCard(
                           coffee: coffee,
-                          terjemahan: terjemahan,
+                          deskripsiId: terjemahan?.deskripsiId,
                           isFavorit: favoriteSet.contains(coffee.title),
                           isIced: isIced,
-                          onFavoritToggle: () {
-                            _toggleFavorit(coffee);
+                          onFavoritToggle: () => _toggleFavorit(coffee),
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DetailScreen(
+                                  coffee: coffee,
+                                  terjemahan: terjemahan,
+                                  isFavorit: favoriteSet.contains(coffee.title),
+                                  isIced: isIced,
+                                  onFavoritToggle: () {
+                                    _toggleFavorit(coffee);
+                                  },
+                                ),
+                              ),
+                            );
                           },
                         ),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
+                        
+                        // POSISI BARU: Pojok Kanan Atas agar foto kopi terlihat penuh!
+                        if (isBestSeller)
+                          Positioned(
+                            top: 4, // Margin atas sejajar dengan kartu
+                            right: 4, // Pindah ke kanan
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.brown.shade800,
+                                borderRadius: const BorderRadius.only(
+                                  topRight: Radius.circular(16), // Melengkung mengikuti sudut atas kartu
+                                  bottomLeft: Radius.circular(12),
+                                ),
+                                border: Border.all(color: Colors.amber.shade300, width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(-2, 2),
+                                  )
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.workspace_premium, color: Colors.amber.shade300, size: 14),
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    'Paling Laku', 
+                                    style: TextStyle(
+                                      color: Colors.white, 
+                                      fontWeight: FontWeight.bold, 
+                                      fontSize: 11,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
         );
-      },
+      }
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     
     return Scaffold(
       appBar: AppBar(
-        title: GestureDetector(
-          onDoubleTap: () {
-            _showSnack('Membuka Akses Owner...');
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
-          },
-          child: const Text('☕ Coffee Catalog'),
-        ),
-        centerTitle: true,
+        title: const Text('☕ Coffee Catalog'),
+        centerTitle: false, 
         actions: [
+          IconButton(
+            icon: const Icon(Icons.favorite_border, color: Colors.red),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const FavoritScreen()));
+            },
+            tooltip: 'Kopi Favorit',
+          ),
           ValueListenableBuilder<List<CartItem>>(
             valueListenable: cartNotifier,
             builder: (context, cartItems, child) {
@@ -290,33 +367,59 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
-          ValueListenableBuilder<ThemeMode>(
-            valueListenable: ThemeManager.themeNotifier,
-            builder: (_, ThemeMode currentMode, __) {
-              final isDark = currentMode == ThemeMode.dark;
-              return IconButton(
-                icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-                onPressed: ThemeManager.toggleTheme,
-                tooltip: isDark ? 'Terang' : 'Gelap',
-              );
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'tema') {
+                ThemeManager.toggleTheme();
+              } else if (value == 'login') {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
+              }
+            },
+            itemBuilder: (BuildContext context) {
+              return [
+                PopupMenuItem<String>(
+                  value: 'tema',
+                  child: Row(
+                    children: [
+                      Icon(isDark ? Icons.light_mode : Icons.dark_mode, size: 20, color: Colors.grey),
+                      const SizedBox(width: 12),
+                      Text(isDark ? 'Mode Terang' : 'Mode Gelap'),
+                    ],
+                  ),
+                ),
+                if (!_isOwner)
+                  const PopupMenuItem<String>(
+                    value: 'login',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_outline, size: 20, color: Colors.grey),
+                        SizedBox(width: 12),
+                        Text('Login Owner'),
+                      ],
+                    ),
+                  ),
+              ];
             },
           ),
+          const SizedBox(width: 4),
         ],
       ),
-      drawer: Drawer(
+      
+      drawer: _isOwner ? Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             UserAccountsDrawerHeader(
               accountName: Text(_username,
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              accountEmail: Text(_isOwner ? 'Administrator Kafe' : 'Selamat Datang di Kafe Kami!'),
+              accountEmail: const Text('Administrator Kafe'),
               currentAccountPicture: CircleAvatar(
                 backgroundColor: Colors.white,
-                backgroundImage: _isOwner && _profilePicBase64 != null
+                backgroundImage: _profilePicBase64 != null
                     ? MemoryImage(base64Decode(_profilePicBase64!))
                     : null,
-                child: (!_isOwner || _profilePicBase64 == null)
+                child: _profilePicBase64 == null
                     ? const Icon(Icons.coffee, size: 40, color: Colors.grey)
                     : null,
               ),
@@ -334,61 +437,46 @@ class _HomeScreenState extends State<HomeScreen>
               title: const Text('Beranda Web'),
               onTap: () => Navigator.pop(context),
             ),
-            if (_isOwner)
-              ListTile(
-                leading: const Icon(Icons.person),
-                title: const Text('Profil Saya'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
-                  _loadUser();
-                },
-              ),
-              if (_isOwner)
-           ListTile(
-             leading: const Icon(Icons.analytics),
-             title: const Text('Laporan & Dasbor Owner'),
-             subtitle: const Text('Lihat omzet & statistik pesanan'),
-             onTap: () {
-               Navigator.pop(context);
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
-             },
-           ),
             ListTile(
-              leading: const Icon(Icons.map),
-              title: const Text('Lokasi Kafe'),
-              subtitle: const Text('Kunjungi kami secara langsung'),
-              onTap: () {
+              leading: const Icon(Icons.person),
+              title: const Text('Profil Saya'),
+              onTap: () async {
                 Navigator.pop(context);
-                _openMap();
+                await Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                _loadUser();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.brightness_6),
-              title: const Text('Ganti Tema (Estetika)'),
+              leading: const Icon(Icons.analytics),
+              title: const Text('Laporan & Dasbor Owner'),
+              subtitle: const Text('Lihat omzet & statistik pesanan'),
               onTap: () {
-                ThemeManager.toggleTheme();
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.inventory),
+              title: const Text('Kelola Stok Menu'),
+              subtitle: const Text('Atur status ketersediaan kopi'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageStockScreen()));
               },
             ),
             const Divider(),
             ListTile(
-              leading: Icon(_isOwner ? Icons.logout : Icons.admin_panel_settings, 
-                            color: _isOwner ? Colors.red : Colors.brown),
-              title: Text(_isOwner ? 'Logout' : 'Login Owner', 
-                          style: TextStyle(color: _isOwner ? Colors.red : Colors.brown, fontWeight: FontWeight.bold)),
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
               onTap: () {
                 Navigator.pop(context);
-                if (_isOwner) {
-                  _logout();
-                } else {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const AuthScreen()));
-                }
+                _logout();
               },
             ),
           ],
         ),
-      ),
-      // PERBAIKAN LOGIKA TOMBOL FLOATING ACTION
+      ) : null, 
+
       floatingActionButton: _isOwner 
           ? FloatingActionButton.extended(
               onPressed: () {
